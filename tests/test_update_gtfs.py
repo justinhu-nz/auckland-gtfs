@@ -35,8 +35,6 @@ class UpdateTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.current = self.root / "gtfs.zip"
         make_feed(self.current)
-        with zipfile.ZipFile(self.current) as bundle:
-            bundle.extractall(self.root / "gtfs")
         self.incoming = self.root / "incoming.zip"
         make_feed(self.incoming, "two")
         self.download = patch.object(updater, "download", side_effect=lambda dest: shutil.copyfile(self.incoming, dest))
@@ -52,8 +50,7 @@ class UpdateTests(unittest.TestCase):
         self.assertFalse(updater.update(self.root))
         self.assertEqual(self.current.read_bytes(), original)
 
-    def test_update_archives_both_before_replacing_and_removes_obsolete_files(self):
-        (self.root / "gtfs" / "obsolete.txt").write_text("old")
+    def test_update_archives_both_before_replacing_only_the_zip(self):
         original = self.current.read_bytes()
         with patch.object(updater, "GitHub") as github:
             def check_archive(path, info, **kwargs):
@@ -62,7 +59,7 @@ class UpdateTests(unittest.TestCase):
             self.assertTrue(updater.update(self.root, archive=True))
             self.assertEqual(github.return_value.archive.call_count, 2)
         self.assertEqual(self.current.read_bytes(), self.incoming.read_bytes())
-        self.assertFalse((self.root / "gtfs" / "obsolete.txt").exists())
+        self.assertFalse((self.root / "gtfs").exists())
 
     def test_dry_run_has_no_changes_or_releases(self):
         original = self.current.read_bytes()
@@ -79,7 +76,6 @@ class UpdateTests(unittest.TestCase):
                 updater.update(self.root, archive=True)
         self.assertEqual(self.current.read_bytes(), original)
         self.assertEqual(updater.inspect_feed(self.current)["feed_version"], "one")
-        self.assertIn("one", (self.root / "gtfs" / "feed_info.txt").read_text())
 
     def test_invalid_download_preserves_data_and_does_not_archive(self):
         self.incoming.write_text("upstream error page")
@@ -102,12 +98,6 @@ class UpdateTests(unittest.TestCase):
         with patch.object(updater, "GitHub") as github:
             self.assertFalse(updater.update(self.root, archive=True))
             github.return_value.archive.assert_called_once()
-
-    def test_repair_extracted_data(self):
-        shutil.copyfile(self.current, self.incoming)
-        (self.root / "gtfs" / "stops.txt").unlink()
-        self.assertTrue(updater.update(self.root))
-        self.assertTrue((self.root / "gtfs" / "stops.txt").exists())
 
     def test_validation_rejects_unsafe_entries_bad_rows_and_expired_dates(self):
         cases = [

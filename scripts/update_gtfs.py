@@ -8,7 +8,6 @@ import io
 import json
 import os
 from pathlib import Path
-import shutil
 import tempfile
 import time
 from datetime import datetime
@@ -184,16 +183,6 @@ def update(root=ROOT, dry_run=False, archive=False):
         current = root / "gtfs.zip"
         old = inspect_feed(current, require_current=False) if current.exists() else None
         changed = old is None or old["content_sha256"] != new["content_sha256"]
-        # Also repair an extracted directory that has drifted from the ZIP.
-        extracted = root / "gtfs"
-        if not changed:
-            actual = {}
-            if extracted.exists():
-                for path in extracted.rglob("*"):
-                    if path.is_file():
-                        with path.open("rb") as source:
-                            actual[str(path.relative_to(extracted))] = hashlib.file_digest(source, "sha256").hexdigest()
-            changed = actual != new["files"]
         summary = (f"Feed {new['feed_version']}\nValid: {new['valid_from']} to {new['valid_until']}\n"
                    f"Routes: {new['counts']['routes.txt']}; stops: {new['counts']['stops.txt']}; "
                    f"trips: {new['counts']['trips.txt']}\nChanged: {str(changed).lower()}\n")
@@ -204,25 +193,10 @@ def update(root=ROOT, dry_run=False, archive=False):
             github = GitHub()
             if old:
                 github.archive(current, old, initial=True)
-            if old is None or old["content_sha256"] != new["content_sha256"]:
+            if changed:
                 github.archive(incoming, new)
         if changed:
-            staged_files = stage / "gtfs"
-            staged_files.mkdir()
-            with zipfile.ZipFile(incoming) as bundle:
-                bundle.extractall(staged_files)
-            backup = stage / "previous-gtfs"
-            if extracted.exists():
-                extracted.rename(backup)
-            try:
-                staged_files.rename(extracted)
-                incoming.replace(current)
-            except OSError:
-                if extracted.exists():
-                    shutil.rmtree(extracted)
-                if backup.exists():
-                    backup.rename(extracted)
-                raise
+            incoming.replace(current)
         for variable, value in (("GITHUB_OUTPUT", f"changed={str(changed).lower()}\n"),
                                 ("GITHUB_STEP_SUMMARY", "### Auckland GTFS\n\n```text\n" + summary + "```\n")):
             if target := os.environ.get(variable):

@@ -3,7 +3,8 @@
 [![Update and archive GTFS](https://github.com/justinhu-nz/auckland-gtfs/actions/workflows/update-gtfs.yml/badge.svg)](https://github.com/justinhu-nz/auckland-gtfs/actions/workflows/update-gtfs.yml)
 
 A mirror of Auckland Transport's static public transport schedules. `gtfs.zip`
-contains the original download; `gtfs/` contains its extracted CSV files.
+contains the original download, including all the GTFS CSV files. To use the
+individual files, extract the ZIP locally.
 
 Source: [AT's GTFS page](https://at.govt.nz/about-us/at-data-sources/general-transit-feed-specification)
 and [direct ZIP download](https://gtfs.at.govt.nz/gtfs.zip).
@@ -15,7 +16,7 @@ Data is published by Auckland Transport under
 GitHub Actions checks daily at 17:23 UTC (05:23 NZST / 06:23 NZDT).
 The schedule is best effort. It downloads into temporary storage, checks ZIP
 integrity, required files and columns, CSV structure, and feed validity dates,
-then archives snapshots before replacing the current files. These are structural
+then archives snapshots before replacing `gtfs.zip`. These are structural
 checks, not a complete GTFS semantic validation.
 
 Each distinct feed is stored in [GitHub Releases](https://github.com/justinhu-nz/auckland-gtfs/releases)
@@ -34,8 +35,9 @@ this automation cannot be recovered automatically.
 
 Uploads start as draft releases and are published once both assets are present.
 A rerun can complete interrupted uploads. Download, validation, or archive failures
-leave the current feed unchanged. Obsolete extracted files are removed when a new
-feed is installed. Only changed data is committed, and workflow runs are serialized.
+leave the current feed unchanged. The workflow commits `gtfs.zip` when its contents
+change. The CSV files inside the ZIP can exceed GitHub's per-file limit for Git.
+Workflow runs are serialized.
 Releases identify data by their ZIP assets and checksums; the release's automatic
 source-code archive/tag points to the checkout used by the updater, not the later
 data update commit.
@@ -68,6 +70,9 @@ python3 scripts/update_gtfs.py --dry-run
 
 # Refresh local data without publishing archives:
 python3 scripts/update_gtfs.py
+
+# Extract the CSV files for local use:
+unzip -o gtfs.zip -d gtfs
 
 # Run offline tests:
 python3 -m unittest discover -s tests -v
